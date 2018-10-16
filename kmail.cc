@@ -1,22 +1,43 @@
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <iostream>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <string>
 #include <sys/socket.h>
+#include <unistd.h>
+
+void send_data(int socket, const char *data) {
+  if (data != NULL) {
+    send(socket, data, strlen(data), 0);
+    std::cout << "Reply stream: " << data;
+  }
+}
+
+void respond(int client_sockfd, char *request) {
+  char output[1024];
+  memset(output, 0, sizeof output);
+}
 
 void *listen(void *param) {
-  int client_socket, len;
+  int client_sockfd, len;
   char buffer[4096];
+
   memset(buffer, 0, sizeof buffer);
+  client_sockfd = *(int *)param;
 
   std::string code = "220 Ready\r\n";
-  send(client_socket, code.c_str(), code.size(), 0);
+  send_data(client_sockfd, code.c_str());
 
   while (1) {
-    len = recv(client_socket, buffer, sizeof buffer, 0);
+    memset(buffer, 0, sizeof buffer);
+    len = recv(client_sockfd, buffer, sizeof buffer, 0);
     if (len > 0) {
+      std::cout << "Request: " << buffer;
+      respond(client_sockfd, buffer);
     } else {
-      break;
+      // std::cout << "No data from server" << std::endl;
+      // break;
     }
   }
 
@@ -43,16 +64,37 @@ int main() {
 
   int link = bind(server_sockfd, (struct sockaddr *)&server_addr,
                   sizeof(struct sockaddr));
+
   if (link == -1) {
     std::cerr << "Error binding socket. Try running with root" << std::endl;
     return 1;
   }
 
-  int client_socket;
+  fcntl(server_sockfd, F_SETFL, fcntl(server_sockfd, F_GETFL, 0) | O_NONBLOCK);
 
-  pthread_t id;
-  pthread_create(&id, NULL, listen, &client_socket);
-  pthread_join(id, NULL);
+  // MAX_CLIENTS
+  if (listen(server_sockfd, 3) == -1) {
+    std::cerr << "Listen error!" << std::endl;
+    return 1;
+  }
 
+  std::cout << "Starting server!" << std::endl;
+  sin_size = sizeof client_addr;
+  while (1) {
+    if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr,
+                                &sin_size)) == -1) {
+      sleep(1);
+      continue;
+    }
+
+    std::cout << "Connection opened from " << inet_ntoa(client_addr.sin_addr)
+              << " at " << time(NULL) << std::endl;
+
+    pthread_t id;
+    pthread_create(&id, NULL, listen, &client_sockfd);
+    pthread_join(id, NULL);
+  }
+
+  close(client_sockfd);
   return 0;
 }
