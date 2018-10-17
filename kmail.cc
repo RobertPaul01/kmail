@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+/* configs */
+#define PORT 25
 #define MAX_CLIENTS 10
 
 /* SMTP Protocol */
@@ -17,7 +19,8 @@
 #define RSET 4
 #define NOOP 5
 #define QUIT 6
-#define INVALID 7
+const std::string SMTP[] = {"HELO", "MAIL FROM", "RCPT TO", "DATA",
+                            "RSET", "NOOP",      "QUIT"};
 
 void send_data(int socket, const char *data) {
   if (data != NULL) {
@@ -28,10 +31,7 @@ void send_data(int socket, const char *data) {
 
 void respond(int client_sockfd, char *request) {
   int index = 0;
-  std::string smtp[] = {"HELO", "MAIL FROM", "RCPT TO", "DATA",
-                        "RSET", "NOOP",      "QUIT"};
-
-  for (std::string str : smtp) {
+  for (std::string str : SMTP) {
     if (strncmp(request, str.c_str(), str.size()) == 0) {
       break;
     }
@@ -43,9 +43,18 @@ void respond(int client_sockfd, char *request) {
     send_data(client_sockfd, "Goodbye\n");
     break;
   case MAIL_FROM:
-    send_data(client_sockfd, "Mail from who\n");
     break;
-  case INVALID:
+  case RCPT_TO:
+    break;
+  case DATA:
+    break;
+  case RSET:
+    break;
+  case NOOP:
+    break;
+  case QUIT:
+    break;
+  default:
     send_data(client_sockfd, "Invalid request\n");
     break;
   }
@@ -55,14 +64,14 @@ void *listen(void *param) {
   int client_sockfd, len;
   char buffer[4096];
 
-  memset(buffer, 0, sizeof buffer);
+  memset(buffer, 0, sizeof(buffer));
   client_sockfd = *(int *)param;
 
   send_data(client_sockfd, "220 Ready\r\n");
 
   while (1) {
-    memset(buffer, 0, sizeof buffer);
-    len = recv(client_sockfd, buffer, sizeof buffer, 0);
+    memset(buffer, 0, sizeof(buffer));
+    len = recv(client_sockfd, buffer, sizeof(buffer, 0));
     if (len > 0) {
       std::cout << "Request: " << buffer;
       respond(client_sockfd, buffer);
@@ -81,7 +90,7 @@ int main() {
   socklen_t sin_size;
   struct sockaddr_in server_addr, client_addr;
 
-  memset(&server_addr, 0, sizeof server_addr);
+  memset(&server_addr, 0, sizeof(server_addr));
   server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_sockfd == -1) {
     std::cerr << "Error creating socket" << std::endl;
@@ -89,7 +98,7 @@ int main() {
   }
 
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(25);
+  server_addr.sin_port = htons(PORT);
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   bzero(&(server_addr.sin_zero), 8);
 
@@ -109,10 +118,12 @@ int main() {
   }
 
   std::cout << "Starting server!" << std::endl;
-  sin_size = sizeof client_addr;
+  sin_size = sizeof(client_addr);
   while (1) {
-    if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr,
-                                &sin_size)) == -1) {
+    client_sockfd =
+        accept(server_sockfd, (struct sockaddr *)&client_addr, &sin_size);
+
+    if (client_sockfd == -1) {
       sleep(1);
       continue;
     }
