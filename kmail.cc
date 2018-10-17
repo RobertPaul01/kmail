@@ -7,6 +7,18 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define MAX_CLIENTS 10
+
+/* SMTP Protocol */
+#define HELO 0
+#define MAIL_FROM 1
+#define RCPT_TO 2
+#define DATA 3
+#define RSET 4
+#define NOOP 5
+#define QUIT 6
+#define INVALID 7
+
 void send_data(int socket, const char *data) {
   if (data != NULL) {
     send(socket, data, strlen(data), 0);
@@ -15,8 +27,28 @@ void send_data(int socket, const char *data) {
 }
 
 void respond(int client_sockfd, char *request) {
-  char output[1024];
-  memset(output, 0, sizeof output);
+  int index = 0;
+  std::string smtp[] = {"HELO", "MAIL FROM", "RCPT TO", "DATA",
+                        "RSET", "NOOP",      "QUIT"};
+
+  for (std::string str : smtp) {
+    if (strncmp(request, str.c_str(), str.size()) == 0) {
+      break;
+    }
+    index++;
+  }
+
+  switch (index) {
+  case HELO:
+    send_data(client_sockfd, "Goodbye\n");
+    break;
+  case MAIL_FROM:
+    send_data(client_sockfd, "Mail from who\n");
+    break;
+  case INVALID:
+    send_data(client_sockfd, "Invalid request\n");
+    break;
+  }
 }
 
 void *listen(void *param) {
@@ -26,8 +58,7 @@ void *listen(void *param) {
   memset(buffer, 0, sizeof buffer);
   client_sockfd = *(int *)param;
 
-  std::string code = "220 Ready\r\n";
-  send_data(client_sockfd, code.c_str());
+  send_data(client_sockfd, "220 Ready\r\n");
 
   while (1) {
     memset(buffer, 0, sizeof buffer);
@@ -36,8 +67,8 @@ void *listen(void *param) {
       std::cout << "Request: " << buffer;
       respond(client_sockfd, buffer);
     } else {
-      // std::cout << "No data from server" << std::endl;
-      // break;
+      std::cout << "No data from server" << std::endl;
+      break;
     }
   }
 
@@ -72,8 +103,7 @@ int main() {
 
   fcntl(server_sockfd, F_SETFL, fcntl(server_sockfd, F_GETFL, 0) | O_NONBLOCK);
 
-  // MAX_CLIENTS
-  if (listen(server_sockfd, 3) == -1) {
+  if (listen(server_sockfd, MAX_CLIENTS) == -1) {
     std::cerr << "Listen error!" << std::endl;
     return 1;
   }
