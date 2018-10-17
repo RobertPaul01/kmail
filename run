@@ -1,0 +1,5 @@
+#!/bin/bash
+
+rm execute
+g++ "$1" -std=c++14 -DDEBUG=true -o execute
+sudo ./execute
